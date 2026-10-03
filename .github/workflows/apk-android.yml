@@ -1,1 +1,84 @@
+# =====================================================================
+# Genera el APK de Android de Mascotita en GitHub (sin instalar nada).
+#  - Se ejecuta solo cada vez que subis cambios, o a mano desde la
+#    pestana "Actions" -> "APK Android" -> "Run workflow".
+#  - El APK queda para descargar en "Releases" (siempre el mismo enlace:
+#    .../releases/download/android/Mascotita.apk) y en "Actions".
+# =====================================================================
+name: APK Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths-ignore: ["**.md", "tools/**", "firestore.rules", "storage.rules", "firestore.indexes.json"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-android
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Descargar el proyecto
+        uses: actions/checkout@v4
+
+      - name: Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Preparar la app (Capacitor)
+        working-directory: movil
+        run: |
+          npm install --no-audit --no-fund
+          node preparar.js
+          npx cap add android
+          node android-ajustes.js
+          npx cap sync android
+
+      - name: Compilar el APK
+        working-directory: movil/android
+        run: |
+          # firma fija: asi cada APK nuevo se instala encima del anterior
+          mkdir -p ~/.android && cp ../mascotita.keystore ~/.android/debug.keystore
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Nombrar el APK
+        run: |
+          cp movil/android/app/build/outputs/apk/debug/app-debug.apk Mascotita.apk
+          ls -la Mascotita.apk
+
+      - name: Guardar en Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mascotita-APK-${{ github.run_number }}
+          path: Mascotita.apk
+
+      - name: Publicar en Releases (enlace fijo)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android
+          name: Mascotita para Android
+          body: |
+            APK de Mascotita para celulares y tablets Android.
+            Compilación #${{ github.run_number }} · ${{ github.sha }}
+            Descargá **Mascotita.apk** y abrilo en el celular para instalar o actualizar.
+          files: Mascotita.apk
+          make_latest: true
 
