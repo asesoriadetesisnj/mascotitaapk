@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mascotita - Crear Admin inicial</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/logo.svg">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="../css/styles.css">
+  <link rel="stylesheet" href="../css/dark-mode.css">
+</head>
+<body>
+  <!-- =================================================================
+       PAGINA DE USO UNICO para crear el usuario Admin inicial.
+       Una vez creado el admin, ELIMINA este archivo del repositorio.
+       Ademas, netlify.toml bloquea /tools/* en el sitio publicado: para usarlo
+       en produccion quita temporalmente esa regla, o usalo en local
+       (python3 -m http.server) y abre http://localhost:8080/tools/crear-admin.html
+       ================================================================= -->
+  <div class="login-wrap" style="grid-template-columns:1fr;place-items:center;background:var(--bg)">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="../assets/logo.png" alt="Mascotita">
+        <h1>Crear Admin</h1>
+        <p>Configuracion inicial (usar una sola vez)</p>
+      </div>
+      <div class="login-error" id="err"></div>
+      <div class="form-field"><label>Nombre</label><input id="nombre" value="Administrador"></div>
+      <div class="form-field"><label>Usuario</label><input id="usuario" value="Admin"></div>
+      <div class="form-field"><label>Contrasena</label><input id="pass" type="password" placeholder="Minimo 8 caracteres" autocomplete="new-password"></div>
+      <button class="btn btn-primary btn-block" id="btn"><i class="fa-solid fa-user-shield"></i> Crear administrador</button>
+      <div class="credenciales-demo">Luego de crearlo, borra este archivo e inicia sesion en <b>index.html</b>.</div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase-config.js"></script>
+  <script>
+  document.getElementById("btn").onclick = async function () {
+    const err = document.getElementById("err");
+    err.style.display = "none";
+    const nombre = document.getElementById("nombre").value.trim();
+    const u = document.getElementById("usuario").value.trim();
+    const pass = document.getElementById("pass").value;
+    const email = u.indexOf("@") !== -1 ? u.toLowerCase() : u.toLowerCase() + "@" + DOMINIO_INTERNO;
+    if (!nombre || !u || pass.length < 8) {
+      err.textContent = "Completa los campos (contrasena de 8+ caracteres).";
+      err.style.display = "block"; return;
+    }
+    this.disabled = true; this.textContent = "Creando...";
+    try {
+      const cred = await auth.createUserWithEmailAndPassword(email, pass);
+      await db.collection("users").doc(cred.user.uid).set({
+        nombre: nombre, email: email, role: "admin", active: true,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(), lastLogin: null
+      });
+      await auth.signOut();
+      alert("Administrador creado correctamente. Ahora borra crear-admin.html e ingresa en index.html");
+      location.href = "../index.html";
+    } catch (e) {
+      console.error(e);
+      err.textContent = e.code === "auth/email-already-in-use"
+        ? "Ese usuario ya existe. Ya puedes iniciar sesion." : "Error: " + e.message;
+      err.style.display = "block";
+      this.disabled = false; this.textContent = "Crear administrador";
+    }
+  };
+  </script>
+</body>
+</html>

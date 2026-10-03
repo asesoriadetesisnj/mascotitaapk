@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "vacunas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vigente", "order": "ASCENDING" },
+        { "fieldPath": "proximaDosis", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "facturas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "propietarioId", "order": "ASCENDING" },
+        { "fieldPath": "fecha", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

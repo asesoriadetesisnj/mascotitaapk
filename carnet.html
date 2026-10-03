@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Carnet de vacunación</title>
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+  <meta name="theme-color" content="#0f9d68">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/dark-mode.css">
+  <script src="js/theme.js"></script>
+  <style>
+    body { background: linear-gradient(160deg, #e5f5ee 0%, var(--bg) 40%); min-height: 100vh; }
+    html.dark body { background: var(--bg); }
+    .cv-wrap { max-width: 560px; margin: 0 auto; padding: 20px 14px 40px; }
+    .cv-clinica { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .cv-clinica img { width: 40px; height: 40px; border-radius: 10px; }
+    .cv-clinica b { font-size: 16px; display: block; }
+    .cv-clinica small { color: var(--texto-suave); }
+    .cv-mascota { display: flex; gap: 16px; align-items: center; }
+    .cv-mascota .foto { width: 84px; height: 84px; border-radius: 20px; object-fit: cover; background: var(--verde-suave); display: flex; align-items: center; justify-content: center; font-size: 34px; color: var(--verde); flex-shrink: 0; }
+    .cv-mascota h1 { font-size: 26px; font-weight: 800; }
+    .cv-vac { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--borde); }
+    .cv-vac:last-child { border-bottom: none; }
+    .cv-vac .info { flex: 1; min-width: 0; }
+    .cv-vac .info small { display: block; color: var(--texto-suave); }
+    .cv-pie { text-align: center; color: var(--texto-tenue); font-size: 12px; margin-top: 18px; }
+  </style>
+</head>
+<body>
+  <main class="cv-wrap" id="cv"><div class="card"><div class="sk-wrap"><div class="sk sk-card"></div><div class="sk sk-fila"></div><div class="sk sk-fila"></div></div></div></main>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script>
+  /* Carnet digital publico (solo lectura). Se abre con ?t=<token>. */
+  (function () {
+    function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+    function f(ts) { if (!ts) return ""; const d = ts.toDate ? ts.toDate() : new Date(ts); return isNaN(d) ? "" : d.toLocaleDateString("es-PY"); }
+    function edad(ts) {
+      if (!ts) return ""; const d = ts.toDate ? ts.toDate() : new Date(ts), h = new Date();
+      let m = (h.getFullYear() - d.getFullYear()) * 12 + h.getMonth() - d.getMonth(); if (h.getDate() < d.getDate()) m--;
+      if (m < 0) return ""; if (m < 24) return m + (m === 1 ? " mes" : " meses"); return Math.floor(m / 12) + " años";
+    }
+    function estado(v) {
+      if (!v.proximaDosis) return ["Aplicada", "neutral"];
+      const d = v.proximaDosis.toDate(), hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+      if (d < hoy) return ["Vencida", "danger"];
+      const lim = new Date(hoy); lim.setDate(lim.getDate() + 30);
+      return d <= lim ? ["Vence pronto", "warn"] : ["Al día", "ok"];
+    }
+    const cont = document.getElementById("cv");
+    function error(msg) { cont.innerHTML = '<div class="card"><div class="estado-vacio"><i class="fa-solid fa-link-slash"></i><p>' + esc(msg) + "</p></div></div>"; }
+    const t = new URLSearchParams(location.search).get("t");
+    if (!t || !/^[a-f0-9]{20,64}$/.test(t)) { error("Enlace inválido."); return; }
+    db.collection("carnets").doc(t).get().then(function (s) {
+      if (!s.exists || s.data().activo === false) { error("Este carnet no existe o fue desactivado por la clínica."); return; }
+      const c = s.data(), cl = c.clinica || {};
+      document.title = "Carnet de " + c.nombre;
+      const vig = (c.vacunas || []).filter(function (v) { return v.vigente; });
+      const hist = (c.vacunas || []);
+      cont.innerHTML =
+        '<div class="cv-clinica"><img src="assets/logo.svg" alt=""><div><b>' + esc(cl.nombre || "Clínica veterinaria") + "</b><small>" + esc([cl.telefono, cl.direccion].filter(Boolean).join(" · ")) + "</small></div></div>" +
+        '<div class="card"><div class="cv-mascota">' + (c.foto ? '<img class="foto" src="' + esc(c.foto) + '" alt="">' : '<div class="foto"><i class="fa-solid fa-paw"></i></div>') +
+        "<div><h1>" + esc(c.nombre) + '</h1><p class="muted" style="font-size:14px">' + esc([c.especie, c.raza, c.sexo, edad(c.fechaNacimiento)].filter(Boolean).join(" · ")) + "</p></div></div></div>" +
+        '<div class="card"><h3><i class="fa-solid fa-shield-virus"></i> Estado de vacunas</h3>' +
+        (vig.length ? vig.map(function (v) { const e = estado(v); return '<div class="cv-vac"><div class="info"><b>' + esc(v.tipo) + "</b><small>Aplicada el " + f(v.fecha) + (v.proximaDosis ? " · próxima: <b>" + f(v.proximaDosis) + "</b>" : "") + '</small></div><span class="pill pill-' + e[1] + '">' + e[0] + "</span></div>"; }).join("")
+          : '<p class="muted">Sin vacunas registradas.</p>') + "</div>" +
+        (hist.length > vig.length ? '<div class="card"><h3><i class="fa-solid fa-clock-rotate-left"></i> Historial</h3>' + hist.map(function (v) { return '<div class="cv-vac"><div class="info"><b>' + esc(v.tipo) + "</b><small>" + f(v.fecha) + (v.producto ? " · " + esc(v.producto) : "") + "</small></div></div>"; }).join("") + "</div>" : "") +
+        (cl.telefono ? '<a class="btn btn-wa btn-block" style="margin-top:16px" href="https://wa.me/' + esc(String(cl.telefono).replace(/\D/g, "").replace(/^0/, "595")) + '?text=' + encodeURIComponent("Hola! Quiero agendar un turno para " + c.nombre + ".") + '" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Agendar turno por WhatsApp</a>' : "") +
+        '<p class="cv-pie">Actualizado el ' + f(c.actualizado) + " · Mascotita</p>";
+    }).catch(function (e) { console.warn(e); error("No se pudo cargar el carnet. Revisá tu conexión e intentá de nuevo."); });
+  })();
+  </script>
+</body>
+</html>

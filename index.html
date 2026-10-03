@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Ingreso - Mascotita</title>
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f9d68">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/dark-mode.css">
+  <script src="js/theme.js"></script>
+</head>
+<body>
+  <div class="login-wrap">
+    <section class="login-arte" aria-hidden="true">
+      <div class="marca"><img src="assets/logo.svg" alt=""> Mascotita</div>
+      <div>
+        <h2>Todo tu consultorio veterinario en un solo lugar.</h2>
+        <ul>
+          <li><i class="fa-solid fa-calendar-check"></i> Agenda compartida en tiempo real</li>
+          <li><i class="fa-solid fa-notes-medical"></i> Historia clínica completa por paciente</li>
+          <li><i class="fa-solid fa-file-invoice-dollar"></i> Facturación, caja y stock conectados</li>
+          <li><i class="fa-brands fa-whatsapp"></i> Recordatorios de vacunas y turnos</li>
+          <li><i class="fa-solid fa-wifi"></i> Funciona aunque se corte internet</li>
+        </ul>
+      </div>
+      <small>Sistema de gestión veterinaria</small>
+    </section>
+    <main class="login-panel">
+      <div class="login-card">
+        <div class="login-logo-movil"><img src="assets/logo.svg" alt="Mascotita"></div>
+        <h1>Bienvenido/a</h1>
+        <p>Ingresá con tu usuario de la clínica.</p>
+        <form id="login-form" novalidate>
+          <div class="login-error" id="login-error" role="alert"></div>
+          <div class="form-field">
+            <label for="login-user">Usuario</label>
+            <input type="text" id="login-user" placeholder="Ej: admin o tu email" autocomplete="username" autocapitalize="none" spellcheck="false">
+          </div>
+          <div class="form-field">
+            <label for="login-pass">Contraseña</label>
+            <div class="input-pass">
+              <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+              <button type="button" id="toggle-pass" aria-label="Mostrar contraseña"><i class="fa-solid fa-eye"></i></button>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="login-btn"><i class="fa-solid fa-right-to-bracket"></i> Ingresar</button>
+          <p style="text-align:center;margin-top:14px"><a href="#" class="link" id="olvide">¿Olvidaste tu contraseña?</a></p>
+        </form>
+        <div class="login-pie">Acceso solo para personal autorizado.</div>
+      </div>
+    </main>
+  </div>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/auditoria.js"></script>
+  <script src="js/auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,214 @@
+rules_version = '2';
+// =====================================================================
+// Reglas de Seguridad de Firestore — Mascotita v3
+// ---------------------------------------------------------------------
+// Roles: admin | veterinario | recepcion | cajero  ("user" antiguo = veterinario)
+//  - Solo usuarios ACTIVOS acceden. ADMIN puede todo lo administrativo.
+//  - Clinica (consultas, vacunas, cirugias): crea/edita admin y veterinario.
+//  - Dinero (facturas, caja): admin y recepcion. ANULAR solo admin.
+//  - Precios y productos: solo admin. Los demas solo mueven la cantidad.
+//  - Papelera: solo el admin envia a la papelera / restaura / borra.
+//  - Auditoria, movimientos de stock y de caja: solo se crean (inalterables).
+// Publicar: Firebase Console -> Firestore -> Reglas (o `firebase deploy --only firestore`).
+// =====================================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Funciones auxiliares ----------
+    function autenticado() { return request.auth != null; }
+    function perfilRef() { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function perfil() { return get(perfilRef()).data; }
+    function activo() { return autenticado() && exists(perfilRef()) && perfil().active == true; }
+    function esAdmin() { return activo() && perfil().role == 'admin'; }
+    function esClinico() { return activo() && perfil().role in ['admin', 'veterinario', 'user']; }
+    function esCaja() { return activo() && perfil().role in ['admin', 'recepcion', 'cajero']; }
+    function cambios() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function soloCampos(campos) { return cambios().hasOnly(campos); }
+    function noTocaPapelera() { return !cambios().hasAny(['eliminado', 'eliminadoEn', 'eliminadoPor', 'eliminadoEtiqueta']); }
+    function soloAviso() { return activo() && soloCampos(['avisadoEn', 'avisadoPor']); }
+
+    // ---------- Usuarios ----------
+    match /users/{uid} {
+      allow read: if autenticado() && (request.auth.uid == uid || activo());
+      allow create, delete: if esAdmin();
+      allow update: if esAdmin() || (request.auth.uid == uid && soloCampos(['lastLogin']));
+    }
+
+    // ---------- Configuracion ----------
+    match /config/{doc} {
+      allow read: if activo();
+      allow write: if esAdmin();
+      // Contadores de facturas y presupuestos: recepcion solo puede sumar 1
+      // (dentro de la transaccion de emision). Los codigos internos son del ADMIN.
+      allow create: if doc == 'contadores' && esCaja() && request.resource.data.keys().hasOnly(['factura', 'presupuesto', 'notaCredito']);
+      allow update: if doc == 'contadores' && esCaja() && (
+        (soloCampos(['factura']) && (!('factura' in resource.data) || request.resource.data.factura == resource.data.factura + 1))
+        || (soloCampos(['presupuesto']) && (!('presupuesto' in resource.data) || request.resource.data.presupuesto == resource.data.presupuesto + 1))
+        || (soloCampos(['notaCredito']) && (!('notaCredito' in resource.data) || request.resource.data.notaCredito == resource.data.notaCredito + 1)));
+    }
+    match /plantillas_whatsapp/{doc} {
+      allow read: if activo();
+      allow write: if esAdmin();
+    }
+    // Contadores agregados del panel (se incrementan al crear/eliminar).
+    match /estadisticas/{doc} {
+      allow read: if activo();
+      allow write: if activo() && request.resource.data.keys().hasOnly(['mascotas', 'propietarios', 'consultas', 'cirugias', 'vacunas', 'recalculadoEn']);
+    }
+
+    // ---------- Auditoria: solo crear, a nombre propio ----------
+    match /auditoria/{doc} {
+      allow read: if esAdmin();
+      allow create: if activo() && request.resource.data.usuarioUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ---------- Pacientes ----------
+    match /propietarios/{doc} {
+      allow read, create: if activo();
+      allow update: if activo() && (noTocaPapelera() || esAdmin());
+      allow delete: if esAdmin();
+    }
+    match /mascotas/{doc} {
+      allow read, create: if activo();
+      allow update: if activo() && (noTocaPapelera() || esAdmin());
+      allow delete: if esAdmin();
+    }
+
+    // ---------- Clinica ----------
+    match /consultas/{doc} {
+      allow read: if activo();
+      allow create: if esClinico();
+      allow update: if (esClinico() && (noTocaPapelera() || esAdmin()))
+        || soloAviso()
+        || (esCaja() && soloCampos(['porCobrar', 'facturaId']));
+      allow delete: if esAdmin();
+    }
+    match /cirugias/{doc} {
+      allow read: if activo();
+      allow create: if esClinico();
+      allow update: if (esClinico() && (noTocaPapelera() || esAdmin()))
+        || (esCaja() && soloCampos(['porCobrar', 'facturaId']));
+      allow delete: if esAdmin();
+    }
+    match /vacunas/{doc} {
+      allow read: if activo();
+      allow create: if esClinico();
+      allow update: if (esClinico() && (noTocaPapelera() || esAdmin())) || soloAviso();
+      allow delete: if esAdmin();
+    }
+    match /citas/{doc} {
+      allow read, create: if activo();
+      allow update: if activo() && (noTocaPapelera() || esAdmin());
+      allow delete: if esAdmin();
+    }
+
+    match /internaciones/{doc} {
+      allow read: if activo();
+      allow create: if esClinico();
+      allow update: if (esClinico() && (noTocaPapelera() || esAdmin()))
+        || (esCaja() && soloCampos(['porCobrar', 'facturaId']));
+      allow delete: if esAdmin();
+    }
+    // Hoja de tratamiento: cada dosis/evolucion queda registrada a nombre de quien la cargo.
+    match /internacion_registros/{doc} {
+      allow read: if activo();
+      allow create: if esClinico() && request.resource.data.usuarioUid == request.auth.uid;
+      allow update: if false;
+      allow delete: if esAdmin();
+    }
+    match /plantillas_clinicas/{doc} {
+      allow read: if activo();
+      allow write: if esClinico();
+    }
+    // Fotos de mascotas guardadas en la base (sin Storage). Maximo ~1 MB.
+    match /fotos/{mascotaId} {
+      allow read: if activo();
+      allow create, update: if activo() && request.resource.data.data is string && request.resource.data.data.size() < 1000000;
+      allow delete: if esAdmin();
+    }
+    // Carnet digital publico: cualquiera con el enlace (token largo) puede VERLO,
+    // pero nadie puede listar los carnets. Solo el personal lo crea o desactiva.
+    match /carnets/{token} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if activo();
+    }
+
+    // ---------- Stock ----------
+    match /productos/{doc} {
+      allow read: if activo();
+      allow create, delete: if esAdmin();
+      allow update: if esAdmin() || (activo() && soloCampos(['cantidad', 'stockBajo']));
+    }
+    match /movimientos_stock/{doc} {
+      allow read: if activo();
+      allow create: if activo()
+        && request.resource.data.tipo in ['entrada', 'salida']
+        && request.resource.data.cantidad is number
+        && request.resource.data.cantidad > 0
+        && request.resource.data.usuarioUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+    // Datos de productos encontrados por codigo de barras (bases publicas).
+    match /codigos_cache/{codigo} {
+      allow read, write: if activo();
+    }
+    match /servicios/{doc} {
+      allow read: if activo();
+      allow write: if esAdmin();
+    }
+    match /proveedores/{doc} {
+      allow read: if activo();
+      allow write: if esAdmin();
+    }
+    match /compras/{doc} {
+      allow read, create, update: if esAdmin();
+      allow delete: if false;
+    }
+
+    // ---------- Dinero ----------
+    match /facturas/{doc} {
+      allow read, create: if esCaja();
+      // Nadie cambia numero ni total despues de emitir; anular solo ADMIN.
+      allow update: if esCaja()
+        && request.resource.data.numero == resource.data.numero
+        && request.resource.data.total == resource.data.total
+        && (request.resource.data.estado != 'anulada' || esAdmin());
+      allow delete: if false;
+    }
+    // Devoluciones (notas de credito): solo se crean, a nombre propio; nunca se editan.
+    match /notas_credito/{doc} {
+      allow read: if esCaja();
+      allow create: if esCaja() && request.resource.data.usuarioUid == request.auth.uid && request.resource.data.total is number && request.resource.data.total > 0;
+      allow update, delete: if false;
+    }
+    match /presupuestos/{doc} {
+      allow read, create, update: if esCaja();
+      allow delete: if esAdmin();
+    }
+    match /cajas/{doc} {
+      allow read: if esCaja();
+      allow create: if esCaja() && request.resource.data.estado == 'abierta';
+      allow update: if esCaja() && resource.data.estado == 'abierta';
+      allow delete: if false;
+    }
+    match /caja_movimientos/{doc} {
+      allow read: if esCaja();
+      allow create: if esCaja()
+        && request.resource.data.usuarioUid == request.auth.uid
+        && request.resource.data.tipo in ['ingreso', 'egreso']
+        && request.resource.data.monto is number
+        && request.resource.data.monto > 0;
+      allow update, delete: if false;
+    }
+    match /ventas/{doc} {   // coleccion de versiones anteriores
+      allow read, write: if esAdmin();
+    }
+
+    // ---------- Todo lo demas: denegado ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

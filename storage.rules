@@ -1,0 +1,33 @@
+rules_version = '2';
+// =====================================================================
+// Reglas de Firebase Storage — Mascotita v3
+//  - Solo usuarios ACTIVOS (se consulta su perfil en Firestore) suben archivos.
+//  - Fotos de mascotas: imagenes de hasta 5 MB.
+//  - Adjuntos clinicos: imagenes o PDF de hasta 10 MB; borrar solo ADMIN.
+// Al publicar, Firebase pide permiso para que Storage lea Firestore: aceptalo.
+// =====================================================================
+service firebase.storage {
+  match /b/{bucket}/o {
+    function perfil() { return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data; }
+    function activo() { return request.auth != null && perfil().active == true; }
+    function esAdmin() { return activo() && perfil().role == 'admin'; }
+
+    match /mascotas/{archivo} {
+      allow read: if request.auth != null;
+      allow create, update: if activo()
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if activo();
+    }
+    match /adjuntos/{mascotaId}/{archivo} {
+      allow read: if request.auth != null;
+      allow create: if activo()
+        && request.resource.size < 10 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+      allow delete: if esAdmin();
+    }
+    match /{todo=**} {
+      allow read, write: if false;
+    }
+  }
+}

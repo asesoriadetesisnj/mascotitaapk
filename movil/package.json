@@ -1,0 +1,17 @@
+{
+  "name": "mascotita-android",
+  "private": true,
+  "version": "3.2.0",
+  "description": "Empaquetado Android (APK) de Mascotita con Capacitor. Lo usa el workflow de GitHub Actions.",
+  "scripts": {
+    "preparar": "node preparar.js",
+    "ajustes": "node android-ajustes.js"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.0",
+    "@capacitor/cli": "^7.4.0",
+    "@capacitor/core": "^7.4.0",
+    "@capacitor/filesystem": "^7.1.0",
+    "@capacitor/share": "^7.0.0"
+  }
+}

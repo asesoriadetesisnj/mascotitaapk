@@ -1,0 +1,85 @@
+# =====================================================================
+# netlify.toml - Configuracion de despliegue en Netlify
+# ---------------------------------------------------------------------
+# El sitio es 100% estatico, no requiere comando de build.
+# publish = "." indica que la raiz del repo es el sitio a publicar.
+# =====================================================================
+
+[build]
+  publish = "."
+  command = ""
+
+# Cabeceras de seguridad para toda la app.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+
+# El service worker y el manifest siempre deben revalidarse para que las
+# actualizaciones de la app lleguen al instante.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# JS y CSS sin hash en el nombre: siempre revalidar (el SW igual va a la red primero).
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Archivos de configuracion de Firebase CLI: no publicarlos.
+[[redirects]]
+  from = "/firebase.json"
+  to = "/index.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/.firebaserc"
+  to = "/index.html"
+  status = 404
+  force = true
+
+# Iconos y logo: cambian poco, se cachean una semana.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
+# Herramientas de instalacion (p. ej. crear-admin): NUNCA visibles en produccion.
+[[redirects]]
+  from = "/tools/*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+# Empaquetado Android y GitHub: no son parte del sitio.
+[[redirects]]
+  from = "/movil/*"
+  to = "/index.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/.github/*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+# Si alguien entra a una ruta inexistente, va al login.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 404
