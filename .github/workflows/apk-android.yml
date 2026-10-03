@@ -1,10 +1,3 @@
-# =====================================================================
-# Genera el APK de Android de Mascotita en GitHub (sin instalar nada).
-#  - Se ejecuta solo cada vez que subis cambios, o a mano desde la
-#    pestana "Actions" -> "APK Android" -> "Run workflow".
-#  - El APK queda para descargar en "Releases" (siempre el mismo enlace:
-#    .../releases/download/android/Mascotita.apk) y en "Actions".
-# =====================================================================
 name: APK Android
 
 on:
@@ -22,25 +15,30 @@ concurrency:
 
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Descargar el proyecto
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Node 20
-        uses: actions/setup-node@v4
+      - name: Node 22
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
 
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Android SDK (licencias)
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDKM" ] || SDKM="$(ls -d $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager | head -1)"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" --install "platforms;android-35" "build-tools;35.0.0" > /dev/null || true
 
       - name: Preparar la app (Capacitor)
         working-directory: movil
@@ -54,7 +52,6 @@ jobs:
       - name: Compilar el APK
         working-directory: movil/android
         run: |
-          # firma fija: asi cada APK nuevo se instala encima del anterior
           mkdir -p ~/.android && cp ../mascotita.keystore ~/.android/debug.keystore
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
@@ -65,7 +62,7 @@ jobs:
           ls -la Mascotita.apk
 
       - name: Guardar en Actions
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Mascotita-APK-${{ github.run_number }}
           path: Mascotita.apk
@@ -81,4 +78,3 @@ jobs:
             Descargá **Mascotita.apk** y abrilo en el celular para instalar o actualizar.
           files: Mascotita.apk
           make_latest: true
-
